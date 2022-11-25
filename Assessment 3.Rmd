@@ -1,0 +1,263 @@
+---
+title: "Assessment 3"
+output:
+  word_document: default
+  html_document: default
+date: "2022-10-07"
+editor_options:
+  chunk_output_type: console
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+###SECTION A - Visualisation###
+
+```{r}
+library(dplyr)
+
+oneworld <- read.csv("C:/Users/seren/OneDrive/Desktop/JCU/2022SP5 - Foundations for Data Science/Assessments/Assessment 3/Data/oneworld.csv")
+
+str(oneworld)  # class of all variables
+```
+
+Question 1.
+
+```{r}
+summary(oneworld) # 1 NA in GDP variable
+
+oneworld_complete <- oneworld %>% filter(!is.na(GDP))  # removing missing observation
+
+brks <- quantile(oneworld_complete$GDP, probs=c(0.0,0.4,0.8,1.0))
+brks[1] <- brks[1] - 0.5  # make lower bound a bit smaller to eliminate NAs
+oneworld_complete$GDPcat <- cut(oneworld_complete$GDP, breaks=brks, labels=c("Low","Medium","High"))
+summary(oneworld_complete$GDPcat)
+```
+
+Question 2.
+
+```{r}
+library(ggplot2)
+
+ggplot(data=oneworld_complete) + geom_point(mapping=aes(x=GDP, y=Infant.mortality, color=Region), size = 2, shape = 16)  + labs(title="GDP vs Infant mortality") + theme(plot.title = element_text(hjust=0.5))
+```
+
+A scatterplot is used to visualise the relationship between the variables GDP and infant mortality as it neatly displays the relationship between the two variables where low GDP looks to be associated with higher infant mortality, and vice versa. The scatterplot when stratified by region also allows us to observe which regions have higher infant mortality and whether any clustering is occurring amongst the different regions.  In the scatterplot above, there seems to be some tendencies of same region points appearing close together, particularly, the sub-Saharan Africa region cluster which looks to also have the highest infant mortality compared to the other regions.  
+
+
+
+###SECTION B - Data Processing I###
+
+Question 1.
+
+```{r}
+missing_proportion <- function(x) {
+  y <- sum(is.na(x)) / length(x)
+  return(y)
+}
+```
+
+Question 2.
+
+```{r}
+data("airquality")  
+
+missing_proportion(airquality$Ozone)
+missing_proportion(airquality$Solar.R)
+missing_proportion(airquality$Wind)
+missing_proportion(airquality$Temp)
+missing_proportion(airquality$Month)
+missing_proportion(airquality$Day)
+```
+
+Question 3.
+
+From the airquality dataset, I would perform univariate imputation on the Solar.R variable. This is because only 4.5% of the data from this variable (compared to 24% from the Ozone variable) is missing, so imputing the missing variables with either the mean or median would not dramatically change the natural variation of the Solar.R variable as it would for the Ozone variable. 
+
+Question 4.
+
+```{r}
+airquality_ad <- airquality
+
+I <- is.na(airquality_ad$Solar.R) 
+airquality_ad$Solar.R[I] <- median(airquality_ad$Solar.R, na.rm = TRUE)
+```
+
+The median of the variable is used to replace the missing observations in the variable Solar.R, as using the median helps retain the dataset's structure. Further, using the median mitigates the effect of outliers. 
+
+Question 5.  
+
+```{r}
+summary(airquality$Solar.R)
+summary(airquality_ad$Solar.R)
+```
+
+From observing the summary statistics performed, the median, min. and max. values are the same between the pre-imputed and imputed Solar.R variable. The spread of the imputed variable Solar.R also looks similar to the pre-imputed variable with only minor differences in the interquartile ranges and mean values. Hence, the imputed variable appears not to be significantly impacting the statistical measures of the Solar.R variable. 
+
+
+
+###SECTION C - Data Processing II###
+
+```{r}
+bowel <- read.csv("C:/Users/seren/OneDrive/Desktop/JCU/2022SP5 - Foundations for Data Science/Assessments/Assessment 3/Data/bowel.csv")
+```
+
+Question 1.
+
+1)
+```{r}
+sum(is.na(bowel$FC))  # FC variable
+sum(is.na(bowel))  # whole dataset
+```
+
+2)
+```{r}
+library(Hmisc)
+bowel$FC_mean <- impute(bowel$FC, fun = mean)	# mean imputation 
+bowel$FC_mean
+```
+
+Univariate imputation using the mean of the variable is used as it is the central tendency value of the available values making it a predictive estimate of the remaining missing value.
+
+Question 2.
+
+a)
+```{r}
+bowel %>% summarise(cor = cor(FC, Age_admission, use = "complete.obs"))
+bowel %>% summarise(cor = cor(FC, CRP, use = "complete.obs"))
+
+
+bowel %>% summarise(across(Age_admission:Hb, ~ cor(FC,., use = "complete.obs")))
+
+bowel %>% select(c("Age_admission", "Disease_duration","FC", "CRP", "Alb", "Hb") ) %>%  summarise(across(.cols = everything(), ~ cor(FC,., use = "complete.obs")))
+```
+
+Variables Disease_duration and CRP show to have the strongest correlation with FC compared to all  the numeric variables in the dataset. The correlation coefficients are -0.1590217 and 0.1394337, respectively. These variables will be used in the next part of the question. 
+
+b)
+
+```{r}
+bowel <- bowel %>% mutate(Disease_duration = ifelse(is.na(Disease_duration),  median(Disease_duration, na.rm = TRUE), Disease_duration)) %>% 
+  mutate(CRP = ifelse(is.na(CRP), median(CRP, na.rm = TRUE), CRP))
+# Impute Disease_duration and CRP beforehand
+
+model <-lm(FC~ Disease_duration + CRP, data = bowel)  # linear model
+
+J <-is.na(bowel$FC)  # Identify records with missing values
+bowel$FC_lm <- bowel$FC
+bowel$FC_lm[J] <-predict(model, newdata= bowel[J, ])  # Replace
+```
+
+c)
+
+```{r}
+library(tidyr)
+FC_all <- bowel %>% select("FC", "FC_mean", "FC_lm")
+FC_pivot <- gather(FC_all, key = "Groups", value = "FC_values")  
+# Pivoting all FC related variables to form boxplot
+
+ggplot(data=FC_pivot) + geom_boxplot(aes(x=Groups, y=FC_values)) + labs(title="FC vs FC_lm vs FC_mean")+ theme(plot.title = element_text(hjust = 0.5))
+```
+
+From the boxplots, it can be seen that the spread of the FC values imputed through predictive imputation resembles much closer to the spread of FC values with missing values compared to the mean imputed FC values. Additionally, most of the spread of values in the mean imputed FC values appear to be within a tight range around the 2,500 mark with many individual values lying outside the interquartile range. This spread does not resemble the spread of the original FC values well, hence, is a worst choice of imputation technique out of the two used.
+
+From the correlation associations performed in question 2a, both of the variables used to perform predictive imputation had correlation coefficients that were very weak. Hence, a different imputation technique (i.e. K-NN or stratified) could be used instead to possibly give better replacement FC values. 
+
+
+
+###SECTION D - Text Analytics###
+
+Question 1.
+
+```{r}
+load("C:/Users/seren/OneDrive/Desktop/JCU/2022SP5 - Foundations for Data Science/Assessments/Assessment 3/Data/Mysterydocs.RData")
+length(docs)
+```
+
+From the output of the R code above, there appears to be 557 documents within the dataset.
+
+Question 2.
+
+```{r}
+library(SnowballC)
+library(tm)
+
+corpus<-VCorpus(VectorSource(docs))
+inspect(corpus[[1]])
+inspect(corpus[[2]])
+
+corpus <- corpus %>% tm_map(removeNumbers) 	%>%  
+							tm_map(removePunctuation)  %>% 
+							tm_map(content_transformer(tolower)) 	%>%  
+							tm_map(removeWords, stopwords("english"))  %>% 
+							tm_map(removeWords, c("can","will"))  %>%  
+							tm_map(stripWhitespace)	 %>%  
+							tm_map(stemDocument) 	 
+
+
+DTM_TF <- DocumentTermMatrix(corpus)
+DTM_TF_matrix <- as.matrix(DTM_TF)
+str(DTM_TF_matrix)
+tail(DTM_TF_matrix[,1:5])
+DTM_TF_Frame <- as.data.frame(as.matrix(DTM_TF))	# Extract matrix from list and coerce it to a data frame
+tail(DTM_TF_Frame[,1:5])
+```
+
+Question 3.
+
+```{r}
+word_count <- DTM_TF %>% as.matrix() %>% apply(MARGIN = 2, sum) %>% sort(decreasing = TRUE)
+DTM_TF1_Frame <- as.data.frame(word_count) 
+DTM_TF_200 <- subset(DTM_TF1_Frame, word_count > 200)
+# Extracing dataframe with word counts over 200
+
+DTM_TF_200 <- cbind(word = rownames(DTM_TF_200), DTM_TF_200)
+rownames(DTM_TF_200) <- 1:nrow(DTM_TF_200)
+
+ordered_words <- reorder(DTM_TF_200$word, DTM_TF_200$word_count)
+# Ordering words in decreasing order for ggplot
+
+ggplot(data = DTM_TF_200) + geom_bar(mapping = aes(x = ordered_words, y = word_count), stat = "identity") + coord_flip() + labs(title="Word counts over 200", x="Words", y="Count")+ theme(plot.title = element_text(hjust = 0.5))
+```
+
+Question 4.
+
+```{r}
+library(lsa)
+library(lattice)
+
+t_matrix <- t(DTM_TF_matrix)  # Transposing matrix
+cos <- cosine(t_matrix)  # Cosine similarity matrix
+levelplot(cos)
+cos_extract = cos[499:557,499:557]  # Extracting documents 499 to 557
+tail(cos_extract[,1:10])
+levelplot(cos_extract)
+```
+
+From the level plot produced from the cosine similarity values between the documents, the majority of the plot indicates that similarity values between documents are overall relatively low, displayed by the vast majority of the plot being pink. This can also be observed in the cosine similarity matrix, whereby most values are low. There is, however, a distinct block of documents in the upper-right corner of the plot that indicates moderate similarity between the documents. When extracting the dataset, this block appears to be documents 501-557, where documents abruptly have similarity measures much higher than the rest of the dataset. This indicates that there is a substantial amount of similarity between documents 501-557.
+
+Additionally, plotting the extracted data gives us a closer look at the upper-right corner of interest in the original plot.
+
+
+```{r}
+##EXTRA CODES
+DTMX <- DTM_TF_Frame
+z <- select_if(DTMX, funs(sum(.) >= 235))
+z_matrix <- as.matrix(z)
+cos_words <- cosine(z_matrix)
+levelplot(cos_words)
+```
+
+
+```{r}
+##EXTRA CODES
+occurrence <- apply(X = DTMX, 
+    MARGIN = 1, 
+    FUN = function(x) sum(x >= 5))
+dtf <- as.data.frame(DTM_TF_Frame[names(occurrence)[occurrence >= 5], ])
+dtf_matrix <- as.matrix(dtf)
+dtf_matrix <- t(dtf_matrix)
+cos_dtf <- cosine(dtf_matrix)
+levelplot(cos_dtf)
+```
