@@ -4,7 +4,7 @@ library(gplots)
 library(GGally)
 
 
-#Importing data into correct format
+#Importing data into correct format - need to update file path
 redwine <- read.csv("C:/Users/seren/OneDrive/Desktop/JCU/2022SP5 - Foundations for Data Science/Assessments/Assessment 4/Data files/Data 7/winequality-red.csv", sep = ";", dec = ".", header = FALSE, na.strings = '?', skip = 1)
 
 
