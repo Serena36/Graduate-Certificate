@@ -17,7 +17,7 @@ knitr::opts_chunk$set(echo = TRUE)
 ```{r}
 library(dplyr)
 
-oneworld <- read.csv("C:/Users/seren/OneDrive/Desktop/JCU/2022SP5 - Foundations for Data Science/Assessments/Assessment 3/Data/oneworld.csv")
+oneworld <- read.csv("C:/Users/seren/OneDrive/Desktop/JCU/2022SP5 - Foundations for Data Science/Assessments/Assessment 3/Data/oneworld.csv") #update file path
 
 str(oneworld)  # class of all variables
 ```
